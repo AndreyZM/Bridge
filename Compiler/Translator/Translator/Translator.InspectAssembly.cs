@@ -351,7 +351,9 @@ namespace Bridge.Translator
         {
             this.Log.Info("Building syntax tree...");
 
+            this.Log.Info("Rewriting...");
             var rewriten = Rewrite();
+            this.Log.Info("Rewriting done");
 
             // Run in parallel only and only if logger level is not trace.
             if (this.Log.LoggerLevel == LoggerLevel.Trace)
