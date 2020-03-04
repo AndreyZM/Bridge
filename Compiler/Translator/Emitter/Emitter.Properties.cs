@@ -4,7 +4,9 @@ using ICSharpCode.NRefactory.TypeSystem;
 using Mono.Cecil;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
+using System.Threading.Tasks;
 
 namespace Bridge.Translator
 {
@@ -237,18 +239,15 @@ namespace Bridge.Translator
             {
                 return list;
             }
+            
 
-            foreach (var reference in references)
+            list.AddRange(references.AsParallel().Select(reference =>
             {
-                logger.Trace("\tLoading AssemblyDefinition " + (reference != null && reference.Name != null && reference.Name.Name != null ? reference.Name.Name : "") + " ...");
-
                 var loader = new CecilLoader();
                 loader.IncludeInternalMembers = true;
-
-                list.Add(loader.LoadAssembly(reference));
-
-                logger.Trace("\tLoading AssemblyDefinition done");
+                return loader.LoadAssembly(reference);
             }
+            ));
 
             logger.Info("Assembly definition to references done");
 

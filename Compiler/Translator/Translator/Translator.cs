@@ -12,6 +12,7 @@ using System.Text;
 using ICSharpCode.NRefactory.Utils;
 using TopologicalSorting;
 using AssemblyDefinition = Mono.Cecil.AssemblyDefinition;
+using System.Threading.Tasks;
 
 namespace Bridge.Translator
 {
@@ -157,9 +158,13 @@ namespace Bridge.Translator
 
             this.BuildSyntaxTree();
 
-
+            this.Log.Info("Building resolver...");
             var resolver = new MemberResolver(this.ParsedSourceFiles, Emitter.ToAssemblyReferences(references, logger), this.AssemblyDefinition);
+            this.Log.Info("Building resolver done");
+
+            this.Log.Info("Preconvert...");
             resolver = this.Preconvert(resolver, config);
+            this.Log.Info("Preconvert done");
 
             this.InspectTypes(resolver, config);
 
@@ -211,7 +216,7 @@ namespace Bridge.Translator
         protected virtual MemberResolver Preconvert(MemberResolver resolver, IAssemblyInfo config)
         {
             bool needRecompile = false;
-            foreach (var sourceFile in this.ParsedSourceFiles)
+            Task.WaitAll(this.ParsedSourceFiles.Select(sourceFile => Task.Run(() =>
             {
                 this.Log.Trace("Preconvert " + sourceFile.ParsedFile.FileName);
                 var syntaxTree = sourceFile.SyntaxTree;
@@ -227,7 +232,7 @@ namespace Bridge.Translator
                     sourceFile.SyntaxTree = syntaxTree;
                     needRecompile = true;
                 }
-            }
+            })).ToArray());
 
             if (needRecompile)
             {

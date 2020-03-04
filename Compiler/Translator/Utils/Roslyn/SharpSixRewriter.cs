@@ -34,6 +34,7 @@ namespace Bridge.Translator
         private bool hasIsPattern;
         private bool hasCasePatternSwitchLabel;
         private bool hasLocalFunctions;
+        private RewriterCache cache = new RewriterCache();
         internal List<string> usingStaticNames;
 
         public SharpSixRewriter(ITranslator translator)
@@ -56,6 +57,15 @@ namespace Bridge.Translator
             this.usingStaticNames = new List<string>();
 
             var syntaxTree = this.compilation.SyntaxTrees[index];
+
+            var filePath = syntaxTree.FilePath;
+            var cachedFile = this.cache.TryGet(filePath);
+
+            if (cachedFile != null)
+            {
+                return cachedFile;
+            }
+
             this.semanticModel = this.compilation.GetSemanticModel(syntaxTree, true);
 
             SyntaxTree newTree = null;
@@ -127,7 +137,11 @@ namespace Bridge.Translator
 
             modelUpdater(result);
 
-            return newTree.GetRoot().ToFullString();
+            var resultString = newTree.GetRoot().ToFullString();
+
+            this.cache.Cache(filePath, resultString);
+
+            return resultString;
         }
 
         // FIXME: Same call made by Bridge.Translator.BuildAssembly
@@ -144,13 +158,8 @@ namespace Bridge.Translator
 
             var parseOptions = GetParseOptions();
 
-            var syntaxTrees = translator.SourceFiles.Select(s => ParseSourceFile(s, parseOptions)).Where(s => s != null).ToList();
-            var references = new MetadataReference[this.translator.References.Count()];
-            var i = 0;
-            foreach (var r in this.translator.References)
-            {
-                references[i++] = MetadataReference.CreateFromFile(r.MainModule.FullyQualifiedName, new MetadataReferenceProperties(MetadataImageKind.Assembly, ImmutableArray.Create("global")));
-            }
+            var syntaxTrees = translator.SourceFiles.AsParallel().Select(s => ParseSourceFile(s, parseOptions)).Where(s => s != null);
+            var references = this.translator.References.AsParallel().Select(r => MetadataReference.CreateFromFile(r.MainModule.FullyQualifiedName, new MetadataReferenceProperties(MetadataImageKind.Assembly, ImmutableArray.Create("global"))));
 
             return CSharpCompilation.Create(GetAssemblyName(), syntaxTrees, references, compilationOptions);
         }
